@@ -45,7 +45,7 @@ namespace GameServer
                             client.GetStream().Read(buffer, 0, buffer.Length);
 
                             message = Encoding.ASCII.GetString(buffer);
-                            Console.WriteLine(message);
+                            Console.WriteLine(message); // the recieved msg
                         }
                         Console.WriteLine("Closing connection.");
                         client.GetStream().Dispose();
