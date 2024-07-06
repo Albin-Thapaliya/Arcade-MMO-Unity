@@ -15,57 +15,11 @@ namespace ServerCore.GameServer.Players
         public void OnPlayerLogin(PlayerLoggedInEvent ev)
         {
             Log.Info($"Player {ev.Player.Login} Logged In with session {ev.Player.SessionId}", ConsoleColor.Yellow);
+
             var player = Mapper.Map<OnlinePlayer>(ev.Player);
             player.Tcp = ev.Client;
             Server.Players.Add(player);
             ev.Client.OnlinePlayer = player;
-
-            // Going to start sending asset validations
-            ev.Client.Send(new AssetsReadyPacket());
-
-            // check if the player already have the tilesets
-            foreach (var tileset in Server.Map.Tilesets)
-            {
-                ev.Client.Send(new AssetPacket()
-                {
-                    ResquestedImageName = tileset.Key,
-                    AssetType = AssetType.TILESET
-                });
-            }
-
-            // check if the player have the main sprites
-            ev.Client.Send(new AssetPacket()
-            {
-                ResquestedImageName = "sprites.png",
-                AssetType = AssetType.SPRITE
-            });
-
-            ev.Client.Send(new AssetPacket()
-            {
-                ResquestedImageName = "bodies.png",
-                AssetType = AssetType.SPRITE
-            });
-
-            ev.Client.Send(new AssetPacket()
-            {
-                ResquestedImageName = "legs.png",
-                AssetType = AssetType.SPRITE
-            });
-
-            ev.Client.Send(new AssetPacket()
-            {
-                ResquestedImageName = "heads.png",
-                AssetType = AssetType.SPRITE
-            });
-
-            ev.Client.Send(new AssetPacket()
-            {
-                ResquestedImageName = "chests.png",
-                AssetType = AssetType.SPRITE
-            });
-
-            // end of assets validation
-            ev.Client.Send(new AssetsReadyPacket());
         }
 
         [EventMethod]
@@ -107,7 +61,7 @@ namespace ServerCore.GameServer.Players
                 X = player.X,
                 Y = player.Y,
                 UserId = player.UserId,
-                Speed = player.speed,
+                Speed = player.MoveSpeed,
                 SpriteIndex = player.SpriteIndex
             };
            
@@ -122,7 +76,7 @@ namespace ServerCore.GameServer.Players
                     X = nearPlayer.X,
                     Y = nearPlayer.Y,
                     UserId = nearPlayer.UserId,
-                    Speed = nearPlayer.speed,
+                    Speed = nearPlayer.MoveSpeed,
                     SpriteIndex = nearPlayer.SpriteIndex
                 };
                 player.Tcp.Send(otherPlayerPacket);
@@ -135,17 +89,17 @@ namespace ServerCore.GameServer.Players
             var fromChunkX = ev.From.X >> 4;
             var fromChunkY = ev.From.Y >> 4;
 
-            var toChunkX = ev.From.X >> 4;
-            var toChunkY = ev.From.Y >> 4;
+            var toChunkX = ev.To.X >> 4;
+            var toChunkY = ev.To.Y >> 4;
 
             var toChunk = Server.Map.GetChunk(toChunkX, toChunkY);
 
             var nearPlayers = ev.Player.GetPlayersNear();
-            var movePacket = new PlayerMovePacket()
+            var movePacket = new EntityMovePacket()
             {
                 From = ev.From,
                 To = ev.To,
-                UserId = ev.Player.UserId
+                UID = ev.Player.UserId
             };
 
             foreach (var nearPlayer in nearPlayers)

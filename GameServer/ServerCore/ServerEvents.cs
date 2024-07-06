@@ -2,6 +2,7 @@
 using Common;
 using Common.Networking.Packets;
 using ServerCore.Game.GameMap;
+using ServerCore.Game.Monsters;
 using ServerCore.GameServer.Players;
 using ServerCore.Networking;
 using ServerCore.Networking.PacketListeners;
@@ -13,17 +14,22 @@ namespace ServerCore
 
     public class ServerEvents
     {
+        private EventBus<IEvent> _eventListener = new EventBus<IEvent>();
 
-        private static EventBus<IEvent> _eventListener = new EventBus<IEvent>();
+        private EventBus<BasePacket> _packetListener = new EventBus<BasePacket>();
 
-        private static EventBus<BasePacket> _packetListener = new EventBus<BasePacket>();
+        public void Clear()
+        {
+            _packetListener = new EventBus<BasePacket>();
+            _eventListener = new EventBus<IEvent>();
+        }
 
-        public static void Call(IEvent e)
+        public void Call(IEvent e)
         {
             _eventListener.RunCallbacks(e);
         }
 
-        public static void Call(BasePacket p)
+        public void Call(BasePacket p)
         {
             _packetListener.RunCallbacks(p);
         }
@@ -33,6 +39,7 @@ namespace ServerCore
             // EVENT LISTENERS
             _eventListener.RegisterListener(new PlayerListener());
             _eventListener.RegisterListener(new MapListener());
+            _eventListener.RegisterListener(new MonsterListener());
 
             // PACKET LISTENERS
             _packetListener.RegisterListener(new LoginPacketListener());

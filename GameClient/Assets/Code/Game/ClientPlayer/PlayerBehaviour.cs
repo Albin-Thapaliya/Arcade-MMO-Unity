@@ -2,7 +2,7 @@
 using Assets.Code.Game;
 using Client.Net;
 using Common.Networking.Packets;
-using CommonCode.Player;
+using CommonCode.EntityShared;
 using MapHandler;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,16 +10,11 @@ using UnityEngine;
 
 public class PlayerBehaviour : MonoBehaviour
 {
-    private Position _goingToPosition;
+    private Position _nextStep;
 
     private Direction _movingToDirection = Direction.NONE;
 
-    private SpriteSheet _bodySpriteSheet;
-    private SpriteSheet _chestSpriteSheet;
-    private SpriteSheet _headSpriteSheet;
-    private SpriteSheet _legsSpriteSheet;
-
-    private List<SpriteSheet> _spriteSheets = new List<SpriteSheet>();
+    public List<SpriteSheet> SpriteSheets = new List<SpriteSheet>();
 
     private float t;
     private Vector3 startPosition;
@@ -30,7 +25,7 @@ public class PlayerBehaviour : MonoBehaviour
     void Start()
     {
         _target = startPosition = transform.position;
-        _spriteSheets = new SpriteSheet[] {
+        SpriteSheets = new SpriteSheet[] {
              transform.Find("body").GetComponent<SpriteSheet>(),
              transform.Find("chest").GetComponent<SpriteSheet>(),
              transform.Find("head").GetComponent<SpriteSheet>(),
@@ -48,8 +43,8 @@ public class PlayerBehaviour : MonoBehaviour
     public void StopMovement()
     {
         _movingToDirection = Direction.NONE;
-        _spriteSheets.ForEach(e => e.Moving = false);
-        _goingToPosition = null;
+        SpriteSheets.ForEach(e => e.Moving = false);
+        _nextStep = null;
         _target = null;
     }
 
@@ -58,13 +53,13 @@ public class PlayerBehaviour : MonoBehaviour
         if (!_target.HasValue)
             return;
         t += Time.deltaTime / timeToReachTarget;
-        transform.position = Vector3.Lerp(startPosition, _target.Value, t);
+        transform.position = Vector3.Lerp(startPosition, new Vector2(_target.Value.x, _target.Value.y), t);
 
         if (transform.position == _target && _movingToDirection != Direction.NONE)
         {
             _movingToDirection = Direction.NONE;
 
-            _spriteSheets.ForEach(e => e.Moving = false);
+            SpriteSheets.ForEach(e => e.Moving = false);
 
             if (_lastMovement)
             {
@@ -79,26 +74,28 @@ public class PlayerBehaviour : MonoBehaviour
     private void SetRoute()
     {
         var player = UnityClient.Player;
-        if (_goingToPosition != null && _movingToDirection == Direction.NONE)
+        if (_nextStep != null && _movingToDirection == Direction.NONE)
         {
-            _movingToDirection = player.Position.GetDirection(_goingToPosition);
+            _movingToDirection = MapHelpers.GetDirection(player.Position, _nextStep);
             var timeToMove = (float)Formulas.GetTimeToMoveBetweenTwoTiles(player.Speed);
 
-            UnityClient.TcpClient.Send(new PlayerMovePacket()
+            UnityClient.TcpClient.Send(new EntityMovePacket()
             {
+                UID = UnityClient.Player.UserId,
                 From = UnityClient.Player.Position,
-                To = _goingToPosition
+                To = _nextStep
             });
 
-            SetDestination(new Vector3(_goingToPosition.X * 16, _goingToPosition.Y * 16, 0), timeToMove / 1000);
-            Debug.Log("Moving Player To " + _goingToPosition.X + " - " + _goingToPosition.Y);
+            SetDestination(new Vector3(_nextStep.X * 16, _nextStep.Y * 16, 0), timeToMove / 1000);
+            Debug.Log("Moving Player To " + _nextStep.X + " - " + _nextStep.Y);
 
-            _spriteSheets.ForEach(e => e.Direction = _movingToDirection);
-            _spriteSheets.ForEach(e => e.Moving = true);
+            SpriteSheets.ForEach(e => e.Direction = _movingToDirection);
+            SpriteSheets.ForEach(e => e.Moving = true);
 
-            UnityClient.Player.Position.X = _goingToPosition.X;
-            UnityClient.Player.Position.Y = _goingToPosition.Y;
-            _goingToPosition = null;
+            UnityClient.Player.Position.X = _nextStep.X;
+            // minus cause <reason>
+            UnityClient.Player.Position.Y = _nextStep.Y;
+            _nextStep = null;
         }
     }
 
@@ -107,7 +104,7 @@ public class PlayerBehaviour : MonoBehaviour
         t = 0;
         startPosition = transform.position;
         timeToReachTarget = time;
-        _target = destination;
+        _target = new Vector2(destination.x, -destination.y);
     }
 
     private void ReadPathfindingNextMovement()
@@ -126,7 +123,7 @@ public class PlayerBehaviour : MonoBehaviour
             }
 
             player.FollowingPath.RemoveAt(0);
-            _goingToPosition = nextStep;
+            _nextStep = nextStep;
             if (player.FollowingPath.Count == 0)
             {
                 player.FollowingPath = null;

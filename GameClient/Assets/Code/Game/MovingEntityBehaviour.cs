@@ -1,11 +1,7 @@
 ﻿using Assets.Code.AssetHandling;
-using Assets.Code.Game;
-using Client.Net;
-using Common.Networking.Packets;
-using CommonCode.Player;
+using CommonCode.EntityShared;
 using MapHandler;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
 public class MovingEntityBehaviour : MonoBehaviour
@@ -24,8 +20,6 @@ public class MovingEntityBehaviour : MonoBehaviour
     private Vector3? _target;
     private float timeToReachTarget;
     private bool _lastMovement;
-
-
 
     void Start()
     {
@@ -72,11 +66,11 @@ public class MovingEntityBehaviour : MonoBehaviour
     {
         if (_goingToPosition != null && _movingToDirection == Direction.NONE)
         {
-            _movingToDirection = MapPosition.GetDirection(_goingToPosition);
+            _movingToDirection = MapHelpers.GetDirection(MapPosition, _goingToPosition);
             var timeToMove = (float)Formulas.GetTimeToMoveBetweenTwoTiles(Speed);
 
             SetDestination(new Vector3(_goingToPosition.X * 16, _goingToPosition.Y * 16, 0), timeToMove / 1000);
-            Debug.Log("Moving Player To " + _goingToPosition.X + " - " + _goingToPosition.Y);
+            Debug.Log("Moving Entity To " + _goingToPosition.X + " - " + _goingToPosition.Y);
 
             SpriteSheets.ForEach(e => e.Direction = _movingToDirection);
             SpriteSheets.ForEach(e => e.Moving = true);
@@ -92,7 +86,7 @@ public class MovingEntityBehaviour : MonoBehaviour
         t = 0;
         startPosition = transform.position;
         timeToReachTarget = time;
-        _target = destination;
+        _target = new Vector2(destination.x, -destination.y);
     }
 
     private void ReadPathfindingNextMovement()

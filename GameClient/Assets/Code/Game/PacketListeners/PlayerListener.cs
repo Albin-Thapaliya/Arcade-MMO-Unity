@@ -40,13 +40,17 @@ namespace Assets.Code.Net.PacketListeners
         }
 
         [EventMethod]
-        public void OnPlayerMove(PlayerMovePacket packet)
+        public void OnPlayerMove(EntityMovePacket packet)
         {
-            var playerObj = GameObject.Find(packet.UserId);
-            if(playerObj != null)
+            var entityObj = GameObject.Find(packet.UID);
+            if (entityObj != null)
             {
-               var movingEntity = playerObj.GetComponent<MovingEntityBehaviour>();
-                movingEntity.Route.Add(packet.To);
+                var movingEntity = entityObj.GetComponent<MovingEntityBehaviour>();
+                if(movingEntity != null)
+                {
+                    movingEntity.Route.Add(packet.To);
+                }
+              
             }
         }
 
@@ -54,7 +58,7 @@ namespace Assets.Code.Net.PacketListeners
         public void OnPlayerAppears(PlayerPacket packet)
         {
             // instantiate the player if needed
-            PlayerHandler.BuildAndInstantiate(new PlayerFactoryOptions()
+            PlayerFactory.BuildAndInstantiate(new PlayerFactoryOptions()
             {
                 SpriteIndex = packet.SpriteIndex,
                 UserId = packet.UserId,
