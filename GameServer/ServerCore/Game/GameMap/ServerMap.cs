@@ -1,4 +1,6 @@
 ﻿using MapHandler;
+using ServerCore.Game.Entities;
+using ServerCore.Game.Monsters;
 using System.Collections.Generic;
 
 namespace ServerCore.Game.GameMap
@@ -9,6 +11,8 @@ namespace ServerCore.Game.GameMap
 
         public List<MonsterSpawner> Spawners = new List<MonsterSpawner>();
 
+        public Dictionary<string, Monster> Monsters = new Dictionary<string, Monster>();
+
         public void LoadAllSpawners()
         {
             foreach (var spawner in Spawners)
@@ -17,4 +21,6 @@ namespace ServerCore.Game.GameMap
             }
         }
     }
+
+    
 }

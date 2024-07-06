@@ -1,9 +1,9 @@
-﻿using Common.Networking.Packets;
+﻿using Common.Entity;
+using Common.Networking.Packets;
 using MapHandler;
+using ServerCore.Game.Entities;
+using ServerCore.Game.Monsters;
 using ServerCore.GameServer.Players;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace ServerCore.Networking
 {
@@ -16,12 +16,12 @@ namespace ServerCore.Networking
             var client = player.Tcp;
             if (client.OnlinePlayer != null && client.OnlinePlayer.AssetsReady)
             {
-                var chunkX = client.OnlinePlayer.X >> 4;
-                var chunkY = client.OnlinePlayer.Y >> 4;
+                var chunkX = client.OnlinePlayer.Position.X >> 4;
+                var chunkY = client.OnlinePlayer.Position.Y >> 4;
 
-                List<Position> shouldBeLoaded = MapUtils.GetRadius(chunkX, chunkY, VIEW_RADIUS);
+                var shouldBeLoaded = PositionExtensions.GetSquared3x3Around(new Position(chunkX, chunkY));
 
-                foreach(var position in shouldBeLoaded)
+                foreach (var position in shouldBeLoaded)
                 {
                     var chunkKey = $"{position.X}_{position.Y}";
                     if (!client.ChunksLoaded.Contains(chunkKey))
@@ -34,20 +34,13 @@ namespace ServerCore.Networking
                             {
                                 X = position.X,
                                 Y = position.Y,
-                                ChunkData = chunk.GetData()
+                                ChunkData = chunk.TilePacketData
                             });
 
-                            foreach(var monsterInstance in chunk.MonstersInChunk)
+                            foreach(var entity in chunk.EntitiesInChunk[EntityType.MONSTER])
                             {
-                                client.Send(new MonsterSpawnPacket()
-                                {
-                                    MonsterUid = monsterInstance.UID,
-                                    MonsterName = monsterInstance.Name,
-                                    Position = monsterInstance.Position,
-                                    SpriteIndex = monsterInstance.SpriteIndex,
-                                    MoveSpeed = monsterInstance.Speed,
-                                    SpawnAnimation = false
-                                });
+                                var monsterInstance = (Monster)entity;
+                                client.Send(monsterInstance.ToPacket());
                             }
                         }
                     }

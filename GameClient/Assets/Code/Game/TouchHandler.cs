@@ -1,28 +1,36 @@
-﻿using Client.Net;
+﻿using Assets.Code.Game.ClientPlayer;
+using Assets.Code.Net.PacketListeners;
+using Client.Net;
+using Common.Networking.Packets;
 using MapHandler;
 using System;
 using UnityEngine;
-using UnityEngine.EventSystems;
 
 namespace Assets.Code.Game
 {
     public class TouchHandler : MonoBehaviour
     {
-        public static bool GameTouchOn = false;
+        public static bool GameTouchEnabled = false;
 
-        /// <summary>
-        /// When user clicks any non object place, it clicks on a tile position
-        /// </summary>
-        private void ClickTile(Vector2 tile)
+        private void ClickTile(Position tile)
         {
-            Debug.Log("Clicked tile " + tile.x + " " + tile.y);
-            var player = UnityClient.Player;
-            var path = WorldMap<Chunk>.FindPath(player.Position, new Position((int)tile.x, (int)tile.y), UnityClient.Map.Chunks);
-            if(path != null)
+            var willMove = UnityClient.Player.FindPathTo(tile);
+            if(willMove)
             {
-               player.FollowingPath = path;
+                // put the green square on the gruond to indicate where u going to
+                Selectors.MoveMovementSelectorTo(tile);
             }
-            Selectors.MoveSelector(tile);
+            // remove the indicators that we are targeting any monsters
+            Selectors.RemoveSelector(SelectorType.TARGET);
+            if(UnityClient.Player.Target != null)
+            {
+                UnityClient.Player.Target = null;
+                UnityClient.TcpClient.Send(new EntityTargetPacket()
+                {
+                    WhoUuid = UnityClient.Player.UID,
+                    TargetUuid = null // not targetting anyone
+                });
+            }
         }
 
         private void ButtonDown(Vector2 position)
@@ -32,16 +40,34 @@ namespace Assets.Code.Game
             var realX = (int)Math.Floor(realPosition.x / 16);
             var realY = (int)Math.Floor(realPosition.y / 16);
 
-            //if (EventSystem.current.()) // check if didnt clickd UI elements
-                ClickTile(new Vector2(realX, -realY));
+            var clickedObject = SelectedObjectByMouse();
+            if(clickedObject != null)
+            {
+                PlayerListener.PlayerSetTarget(clickedObject);
+            } else
+            {
+                //if (EventSystem.current.()) // check if didnt clickd UI elements
+                ClickTile(new Position(realX, -realY));
+            }
+        }
+
+        public GameObject SelectedObjectByMouse()
+        {
+            var mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            var hitCollider = Physics2D.OverlapPoint(mousePosition);
+            if(hitCollider != null && hitCollider.transform != null)
+            {
+                return hitCollider.gameObject;
+            }
+            return null;
         }
 
         public void Update()
         {
-            if (!GameTouchOn)
+            if (!GameTouchEnabled)
                 return;
 
-            if(Input.touchCount > 0)
+            if (Input.touchCount > 0)
             {
                 var touch = Input.GetTouch(0);
                 if (touch.phase == TouchPhase.Began)

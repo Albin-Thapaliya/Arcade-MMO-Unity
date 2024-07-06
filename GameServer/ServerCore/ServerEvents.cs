@@ -1,6 +1,7 @@
 ﻿
 using Common;
 using Common.Networking.Packets;
+using ServerCore.Game.Entities;
 using ServerCore.Game.GameMap;
 using ServerCore.Game.Monsters;
 using ServerCore.GameServer.Players;
@@ -40,10 +41,11 @@ namespace ServerCore
             _eventListener.RegisterListener(new PlayerListener());
             _eventListener.RegisterListener(new MapListener());
             _eventListener.RegisterListener(new MonsterListener());
+            _eventListener.RegisterListener(new EntityListener());
 
             // PACKET LISTENERS
             _packetListener.RegisterListener(new LoginPacketListener());
-            _packetListener.RegisterListener(new AssetListener());
+            _packetListener.RegisterListener(new AssetPacketListener());
             _packetListener.RegisterListener(new PlayerPacketListener());
         }
     }

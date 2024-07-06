@@ -1,61 +1,101 @@
-﻿using MapHandler;
+﻿
+using ServerCore.Assets;
+using ServerCore.Game.Entities;
+using ServerCore.Game.GameMap;
 using ServerCore.Game.Monsters.Behaviours;
-using ServerCore.GameServer.Players;
-using ServerCore.Utils.Scheduler;
+using Common.Scheduler;
 using System;
-using System.Collections.Generic;
+using Common.Entity;
+using Common.Networking.Packets;
 
 namespace ServerCore.Game.Monsters
 {
-    public abstract class Monster
+    public abstract class Monster : LivingEntity, IClientRenderable
     {
-        public string UID;
-        public string Name;
-        public Position Position;
-        public int SpriteIndex = 2;
-        public int Speed = 5;
-        public long MovementDelay = 2000; // in millis
         public long LastMovement = 0;
-
-        public IMonsterMovement MovementBehaviour;
+        public long MovementDelay = 2000; // in millis
+        public MonsterSpawner OriginSpawner;
+        public abstract SpriteAsset GetSprite();
+        public Guid MovementTaskId = Guid.Empty;
 
         public Monster()
         {
             UID = $"mon_{Guid.NewGuid().ToString()}";
+            EntityType = EntityType.MONSTER;
+        }
+
+        // Behaviours
+        public IMonsterAggro AggroBehaviuor;
+        public IMonsterMovement MovementBehaviour;
+
+        public SpriteAsset GetSpriteAsset()
+        {
+            return GetSprite();
+        }
+
+        public MonsterPacket ToPacket()
+        {
+            return new MonsterPacket()
+            {
+                MonsterUid = this.UID,
+                MonsterName = this.Name,
+                Position = this.Position,
+                SpriteIndex = this.GetSpriteAsset().SpriteRowIndex,
+                MoveSpeed = this.MoveSpeed,
+                Atk = this.Atk,
+                Def = this.Def,
+                AtkSpeed = this.AtkSpeed,
+                HP = this.HP,
+                MAXHP = this.MAXHP
+            };
+        }
+
+        public void FromPacket(MonsterPacket packet)
+        {
+            UID = packet.MonsterUid;
+            Name = packet.MonsterName;
+            Position = packet.Position;
+            GetSpriteAsset().SpriteRowIndex = packet.SpriteIndex;
+            MoveSpeed = packet.MoveSpeed;
+            Atk = packet.Atk;
+            Def = packet.Def;
+            AtkSpeed = packet.AtkSpeed;
+            HP = packet.HP;
+            MAXHP = packet.MAXHP;
         }
 
         public void MovementTick()
         {
-            if(MovementBehaviour != null)
+            if (MovementTaskId == Guid.Empty)
+                GameScheduler.CancelTask(MovementTaskId);
+
+            MovementBehaviour?.PerformMovement(this);
+            LastMovement = GameThread.TIME_MS_NOW;
+            this.MovementTaskId = GameScheduler.Schedule(new SchedulerTask(MovementDelay, LastMovement)
             {
-                MovementBehaviour.PerformMovement(this);
-                LastMovement = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
-                GameScheduler.Schedule(new SchedulerTask(MovementDelay)
+                Task = () =>
                 {
-                    Task = () =>
-                    {
+                    MovementTaskId = Guid.Empty;
+                    if(HP > 0)
                         MovementTick();
-                    }
-                });
-            }
+                }
+            });
         }
 
-        public List<OnlinePlayer> GetNearbyPlayers()
+        public override void BeTargeted(LivingEntity entity)
         {
-            List<OnlinePlayer> near = new List<OnlinePlayer>();
-            var radius = MapHelpers.GetSquared3x3(new Position(Position.X >> 4, Position.Y >> 4));
-            foreach (var position in radius)
-            {
-                var chunkThere = Server.Map.GetChunk(position.X, position.Y);
-                if (chunkThere != null)
-                {
-                    foreach (var playerInChunk in chunkThere.PlayersInChunk)
-                    {
-                        near.Add(playerInChunk);
-                    }
-                }
-            }
-            return near;
+            base.BeTargeted(entity);
+            this.AggroBehaviuor.OnBeingTargeted(this, entity);
+        }
+
+        public override void Die()
+        {
+            Log.Debug(this.Name + " Died");
+            Server.Map.UpdateEntityPosition(this, from: this.Position, to: null);
+            Server.Map.Monsters.Remove(this.UID);
+            this.OriginSpawner?.CreateSpawnTask();
+            GameScheduler.CancelTask(MovementTaskId);
+            GameScheduler.CancelTask(AttackTaskId);
         }
     }
 }

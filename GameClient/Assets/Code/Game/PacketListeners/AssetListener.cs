@@ -17,6 +17,11 @@ namespace Assets.Code.Net.PacketListeners
             UPDATED = 3
         }
 
+        // Will force assets to be re-downloaded everytime
+        public static bool DEBUG_ALWAYS_DOWNLOAD = false;
+
+        private static List<AssetPacket> _assetsRequested = new List<AssetPacket>();
+
         public static AssetLoadingState State = AssetLoadingState.UPDATED;
 
         public static int NumberOfAssetsToRecieve = 0;
@@ -31,7 +36,6 @@ namespace Assets.Code.Net.PacketListeners
         [EventMethod]
         public void OnAssetReady(AssetsReadyPacket assetReady)
         {
-            Debug.Log("ASSET READY STATE " + State);
             if (State != AssetLoadingState.BEGINING)
             {
                 State = AssetLoadingState.BEGINING;
@@ -39,66 +43,69 @@ namespace Assets.Code.Net.PacketListeners
             else
             {
                 State = AssetLoadingState.RECIEVING;
-                NumberOfAssetsToRecieve = _assetRequests.Count;
+                NumberOfAssetsToRecieve = _assetsRequested.Count;
+
                 if (NumberOfAssetsToRecieve > 0)
                 {
-                    foreach (var packet in _assetRequests)
+                    foreach (var packet in _assetsRequested)
                     {
                         packet.HaveIt = false; // asking for the asset
                         UnityClient.TcpClient.Send(packet);
                         Debug.Log("Asking for asset " + packet.ResquestedImageName);
                     }
                     LoadingBehaviour.Loading.StartLoading("Downloading Assets");
+                } else
+                {
+                    DoneDownloading();
                 }
             }
         }
-
-        private static List<AssetPacket> _assetRequests = new List<AssetPacket>();
 
         [EventMethod]
         public void OnAsset(AssetPacket packet)
         {
 
-            Debug.Log("ASSET PACKET");
             // If im recieving from the server that i need an asset
             if (packet.Asset == null)
             {
                 // if i dont have it
-               // if (!File.Exists(Path.Combine(Application.persistentDataPath, packet.ResquestedImageName)))
-               // {
-                    _assetRequests.Add(packet);
-              //  }
-             //   else
-            //    {
-            //        var spriteMap = AssetHandler.LoadNewSprite(Path.Combine(Application.persistentDataPath, packet.ResquestedImageName));
-            //        AssetHandler.LoadedAssets.Add(packet.ResquestedImageName, spriteMap);
-           //         UnityClient.TcpClient.Send(new AssetsReadyPacket()
-            //        {
-           //             UserId = UnityClient.UserId
-            //        });
-            //    }
+                if (!File.Exists(Path.Combine(Application.persistentDataPath, packet.ResquestedImageName)) || DEBUG_ALWAYS_DOWNLOAD)
+                {
+                    _assetsRequested.Add(packet);
+                }
+                else
+                {
+                    var spriteMap = AssetHandler.LoadNewSprite(Path.Combine(Application.persistentDataPath, packet.ResquestedImageName));
+                    AssetHandler.LoadedAssets.Add(packet.ResquestedImageName, spriteMap);
+                    AssetsRecieved++;
+                }
             }
             else
             {
-                Debug.Log("Saving asset " + packet.ResquestedImageName);
+                Debug.Log("Saving asset " + packet.ResquestedImageName + " SIZE " + packet.Asset.Length);
                 File.WriteAllBytes(Path.Combine(Application.persistentDataPath, packet.ResquestedImageName), packet.Asset);
                 var spriteMap = AssetHandler.LoadNewSprite(Path.Combine(Application.persistentDataPath, packet.ResquestedImageName));
                 AssetHandler.LoadedAssets.Add(packet.ResquestedImageName, spriteMap);
                 AssetsRecieved++;
                 if (AssetsRecieved == NumberOfAssetsToRecieve && AssetsRecieved > 0)
                 {
-                    LoadingBehaviour.Loading.StopLoading();
-                    _assetRequests.Clear();
-                    NumberOfAssetsToRecieve = 0;
-                    AssetsRecieved = 0;
-                    State = AssetLoadingState.UPDATED;
-                    Debug.Log("Assets of user " + UnityClient.Player.UserId + " ready");
-                    UnityClient.TcpClient.Send(new AssetsReadyPacket()
-                    {
-                        UserId = UnityClient.Player.UserId
-                    });
+                    DoneDownloading();
                 }
             }
+        }
+
+        public void DoneDownloading()
+        {
+            LoadingBehaviour.Loading.StopLoading();
+            _assetsRequested.Clear();
+            NumberOfAssetsToRecieve = 0;
+            AssetsRecieved = 0;
+            State = AssetLoadingState.UPDATED;
+            Debug.Log("Assets of user " + UnityClient.Player.UID + " ready");
+            UnityClient.TcpClient.Send(new AssetsReadyPacket()
+            {
+                UserId = UnityClient.Player.UID
+            });
         }
     }
 }

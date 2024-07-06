@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Common.Entity;
+using System.Collections.Generic;
 
 namespace MapHandler
 {
@@ -9,18 +10,19 @@ namespace MapHandler
         public int x;
         public int y;
 
-        private Int16[,] _chunkTiles = new Int16[SIZE, SIZE];
+        public MapTile[,] Tiles = new MapTile[SIZE, SIZE];
 
-        public Int16[,] GetData() => _chunkTiles;
+        public Dictionary<EntityType, List<Entity>> EntitiesInChunk = new Dictionary<EntityType, List<Entity>>();
 
-        public void SetTile(int x, int y, Int16 tile)
+        public Chunk()
         {
-            _chunkTiles[x, y] = tile;
+            EntitiesInChunk.Add(EntityType.PLAYER, new List<Entity>());
+            EntitiesInChunk.Add(EntityType.MONSTER, new List<Entity>());
         }
 
-        public Int16 GetTile(int x, int y)
+        public new string ToString()
         {
-            return _chunkTiles[x, y];
+            return x + "_" + y;
         }
     }
 }

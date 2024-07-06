@@ -1,16 +1,22 @@
 ﻿using CommonCode.Pathfinder;
 using MapHandler;
 using NUnit.Framework;
-using System.Collections.Generic;
 
 namespace Common.Tests
 {
     [TestFixture]
     public class TestPathfinder
     {
-
         public static short BLOCK = 2;
         public static short PASSABLE = 1;
+
+        private WorldMap<Chunk> _map;
+
+        [SetUp]
+        public void Setup()
+        {
+            _map = new WorldMap<Chunk>();
+        }
 
         private Chunk CreateChunk(int x, int y)
         {
@@ -19,30 +25,38 @@ namespace Common.Tests
                 x = x,
                 y = y
             };
+
             for(int xx = 0; xx < 16; xx++)
             {
                 for (int yy = 0; yy < 16; yy++)
                 {
-                    chunk1.SetTile(xx, yy, PASSABLE);
+                    chunk1.Tiles[xx, yy] = new MapTile(new Position(xx, yy), PASSABLE);
                 }
             }
             return chunk1;
         }
 
+        [Test]
+        public void TestPathfinderDistanceLimit()
+        {
+            var chunk1 = CreateChunk(0, 0);
+            chunk1.Tiles[1, 0].TileId = BLOCK;
+
+            var path = _map.FindPath(new Position(10, 0), new Position(0, 0));
+
+           // Assert.That(path.Count )
+        }
 
         [Test]
-        public void Test1()
+        public void TestSomePathfinding()
         {
-
             var chunk1 = CreateChunk(0, 0);
-            chunk1.SetTile(1, 0, BLOCK);
-            chunk1.SetTile(1, 1, BLOCK);
-            chunk1.SetTile(1, 2, BLOCK);
+            chunk1.Tiles[1, 0].TileId = BLOCK;
+            chunk1.Tiles[1, 1].TileId = BLOCK;
+            chunk1.Tiles[1, 2].TileId = BLOCK;
+            _map.AddChunk(chunk1);
 
-            var chunks = new Dictionary<string, Chunk>();
-            chunks.Add("0_0", chunk1);
-
-            var path = WorldMap<Chunk>.FindPath(new Position(0, 0), new Position(2, 0), chunks);
+            var path = _map.FindPath(new Position(0, 0), new Position(2, 0));
             Assert.That(path.Count == 9);
 
             Assert.That(path[0].X == 0 && path[0].Y==0);
@@ -61,16 +75,32 @@ namespace Common.Tests
         {
 
             var chunk1 = CreateChunk(0, 0);
-            chunk1.SetTile(0, 0, BLOCK);
+            chunk1.Tiles[0, 0].TileId = BLOCK;
 
             var chunk2 = CreateChunk(-1, 0);
 
-            var chunks = new Dictionary<string, Chunk>();
-            chunks.Add("0_0", chunk1);
-            chunks.Add("-1_0", chunk2);
+            _map.AddChunk(chunk1);
+            _map.AddChunk(chunk2);
 
-            var path = WorldMap<Chunk>.FindPath(new Position(1, 0), new Position(-1, 0), chunks);
+            var path = _map.FindPath(new Position(1, 0), new Position(-1, 0));
             Assert.That(path.Count == 5);   
+        }
+
+        [Test]
+        public void TestGeneratePassableByteArrayNegativeChunks()
+        {
+            var chunk1 = CreateChunk(0, 0);
+            chunk1.Tiles[0, 0].TileId = BLOCK;
+
+            var chunk2 = CreateChunk(-1, 0);
+
+            _map.AddChunk(chunk1);
+            _map.AddChunk(chunk2);
+
+            var passableArrayResponse = _map.GetPassableByteArray(new Position(1, 0), new Position(-1, 0));
+
+            Assert.That(passableArrayResponse.OffsetY == 1,
+                "Since we had a negative chunk, our offset Y should be added to still be able to make the 2d array");
         }
 
         [Test]
@@ -78,15 +108,14 @@ namespace Common.Tests
         {
 
             var chunk1 = CreateChunk(0, 0);
-            chunk1.SetTile(0, 0, BLOCK);
+            chunk1.Tiles[0, 0].TileId = BLOCK;
 
             var chunk2 = CreateChunk(0, -1);
 
-            var chunks = new Dictionary<string, Chunk>();
-            chunks.Add("0_0", chunk1);
-            chunks.Add("0_-1", chunk2);
+            _map.AddChunk(chunk1);
+            _map.AddChunk(chunk2);
 
-            var path = WorldMap<Chunk>.FindPath(new Position(0, 1), new Position(0, -1), chunks);
+            var path = _map.FindPath(new Position(0, 1), new Position(0, -1));
             Assert.That(path.Count == 5);
         }
 
@@ -95,20 +124,18 @@ namespace Common.Tests
         {
 
             var chunk1 = CreateChunk(0, 0);
-            chunk1.SetTile(0, 1, BLOCK);
-            chunk1.SetTile(1, 0, BLOCK);
+            chunk1.Tiles[0, 1].TileId = BLOCK;
+            chunk1.Tiles[1, 0].TileId = BLOCK;
 
             var chunk2 = CreateChunk(0, -1);
 
-            var chunks = new Dictionary<string, Chunk>();
-            chunks.Add("0_0", chunk1);
-            chunks.Add("0_-1", chunk2);
+            _map.AddChunk(chunk1);
+            _map.AddChunk(chunk2);
 
-            var grid = PathfinderHelper.GetPassableByteArray(new Position(0, 0), new Position(0, 2), chunks);
+            var grid = _map.GetPassableByteArray(new Position(0, 0), new Position(0, 2));
 
             Assert.AreEqual(48, grid.PassableMap.GetLength(0));
             Assert.AreEqual(48, grid.PassableMap.GetLength(1));
-
         }
 
         [Test]
@@ -118,11 +145,10 @@ namespace Common.Tests
             var chunk1 = CreateChunk(0, 0);
             var chunk2 = CreateChunk(1, 0);
 
-            var chunks = new Dictionary<string, Chunk>();
-            chunks.Add("0_0", chunk1);
-            chunks.Add("1_0", chunk2);
+            _map.AddChunk(chunk1);
+            _map.AddChunk(chunk2);
 
-            var path = WorldMap<Chunk>.FindPath(new Position(0, 0), new Position(19, 0), chunks);
+            var path = _map.FindPath(new Position(0, 0), new Position(19, 0));
             Assert.That(path.Count == 20);
         }
 
@@ -130,12 +156,9 @@ namespace Common.Tests
         public void TestBiggerMap()
         {
 
-            var map = new WorldMap<Chunk>();
-
             var chunk1 = CreateChunk(0, 0);
             var chunk2 = CreateChunk(1, 0);
             var chunk3 = CreateChunk(-1, 0);
-            //chunk3.SetTile(15, 0, 2);
             var chunk4 = CreateChunk(0, 1);
             var chunk5 = CreateChunk(0, -1);
             var chunk6 = CreateChunk(1, 1);
@@ -143,23 +166,39 @@ namespace Common.Tests
             var chunk8 = CreateChunk(-1, 1);
             var chunk9 = CreateChunk(1, -1);
 
-            map.AddChunk(chunk1);
-            map.AddChunk(chunk2);
-            map.AddChunk(chunk3);
-            map.AddChunk(chunk4);
-            map.AddChunk(chunk5);
-            map.AddChunk(chunk6);
-            map.AddChunk(chunk7);
-            map.AddChunk(chunk8);
-            map.AddChunk(chunk9);
+            _map.AddChunk(chunk1);
+            _map.AddChunk(chunk2);
+            _map.AddChunk(chunk3);
+            _map.AddChunk(chunk4);
+            _map.AddChunk(chunk5);
+            _map.AddChunk(chunk6);
+            _map.AddChunk(chunk7);
+            _map.AddChunk(chunk8);
+            _map.AddChunk(chunk9);
 
-            var passableMapArray = PathfinderHelper.GetPassableByteArray(new Position(0, 0), new Position(-1, 0), map.Chunks);
+            var passableMapArray =_map.GetPassableByteArray(new Position(0, 0), new Position(-1, 0));
 
-            var path = WorldMap<Chunk>.FindPath(new Position(0, 0), new Position(-1, 0), map.Chunks);
+            var path = _map.FindPath(new Position(0, 0), new Position(-1, 0));
             Assert.That(path.Count == 2);
 
             Assert.That(path[0].X == 0 && path[0].Y == 0);
             Assert.That(path[1].X == -1 && path[1].Y == 0);
+        }
+
+        [Test]
+        public void TestPassableBlockArrayRandomBug()
+        {
+            for(int x = 0; x < 10; x++)
+            {
+                for(int y = 0; y < 10; y++)
+                {
+                    _map.AddChunk(CreateChunk(x, y));
+                }
+            }
+          
+            var path = _map.FindPath(new Position(0, 0), new Position(2, 0));
+
+            Assert.That(path.Count == 3);
         }
     }
 }

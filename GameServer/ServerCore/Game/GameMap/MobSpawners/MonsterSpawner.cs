@@ -5,12 +5,16 @@ using ServerCore.Game.Monsters;
 using ServerCore.GameServer.Players.Evs;
 using System;
 using System.Collections.Generic;
+using ServerCore.GameServer.Entities;
+using Common.Scheduler;
 
 namespace ServerCore.Game.GameMap
 {
     public class MonsterSpawner : MapRegion
     {
         public List<SpawnerMob> SpawnerMobs = new List<SpawnerMob>();
+
+        public int SpawnTimerSeconds;
 
         public Position FindSpawnPosition()
         {
@@ -20,14 +24,26 @@ namespace ServerCore.Game.GameMap
             while (tries > 0 && !found)
             {
                 tries--;
-                var randomX = rnd.Next(minX, maxX);
-                var randomY = rnd.Next(minY, maxY);
+                var randomX = rnd.Next(Min.X, Max.X);
+                var randomY = rnd.Next(Min.Y, Max.Y);
                 if (!Server.Map.IsPassable(randomX, randomY))
                     continue;
 
                 return new Position(randomX, randomY);
             }
             return null;
+        }
+
+        public void CreateSpawnTask()
+        {
+            var schedulerTask = new SchedulerTask(SpawnTimerSeconds/1000, GameThread.TIME_MS_NOW)
+            {
+                Task = () =>
+                {
+                    SpawnTick();
+                }
+            };
+            GameScheduler.Schedule(schedulerTask);
         }
 
         public void SpawnTick()
@@ -42,34 +58,24 @@ namespace ServerCore.Game.GameMap
                         return;
 
                     monsterInstance.Position = spawnPosition;
+                    monsterInstance.OriginSpawner = this;
 
-                    Server.Events.Call(new MonsterSpawnEvent()
+                    var spawnEvent = new EntitySpawnEvent()
                     {
-                        Monster = monsterInstance,
+                        Entity = monsterInstance,
                         Position = spawnPosition
-                    });
-
-                    var chunkX = spawnPosition.X >> 4;
-                    var chunkY = spawnPosition.Y >> 4;
-
-                    var chunk = Server.Map.GetChunk(chunkX, chunkY);
-
-                    chunk.MonstersInChunk.Add(monsterInstance);
+                    };
+                    Server.Events.Call(spawnEvent);
 
                     // Let players know this monster spawned
-                    foreach (var player in monsterInstance.GetNearbyPlayers())
+                    foreach (var player in monsterInstance.GetPlayersNear())
                     {
-                        player.Tcp.Send(new MonsterSpawnPacket()
-                        { 
-                            MonsterUid = monsterInstance.UID,
-                            MonsterName = monsterInstance.Name,
-                            Position = monsterInstance.Position,
-                            SpriteIndex = monsterInstance.SpriteIndex,
-                            MoveSpeed = monsterInstance.Speed,
-                            SpawnAnimation = true
-                        });
+                        var monsterPacket = monsterInstance.ToPacket();
+                        monsterPacket.SpawnAnimation = true;
+                        player.Tcp.Send(monsterPacket);
                     }
 
+                    // Start movement tasks
                     monsterInstance.MovementTick();
                 }
             }

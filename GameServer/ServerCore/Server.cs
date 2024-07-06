@@ -1,19 +1,14 @@
-﻿using AutoMapper;
-using Common;
+﻿using Common;
 using Common.Networking.Packets;
-using MapHandler;
 using ServerCore.ConsoleCmds;
 using ServerCore.Game.GameMap;
+using ServerCore.Game.Monsters;
 using ServerCore.GameServer.Players;
 using ServerCore.Networking;
-using ServerCore.Utils.Scheduler;
-using Storage.Players;
-using System;
+using Common.Scheduler;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading;
 
 namespace ServerCore
 {
@@ -35,21 +30,19 @@ namespace ServerCore
         private readonly int PORT;
 
         private Server _instance;
-        
 
-        public Server(int port)
+        public Server(ServerStartConfig config)
         {
-            PORT = port;
+            PORT = config.Port;
             _instance = this;
             Events?.Clear();
             Events = new ServerEvents();
             CommandHandler = new CommandHandler();
-            Map = MapLoader.LoadMapFromFile("test");
-            Map.LoadAllSpawners();
-            Mapper.Reset();
-            Mapper.Initialize(cfg => {
-                cfg.CreateMap<Player, OnlinePlayer>();
-            });
+            TcpHandler = new ServerTcpHandler();
+            AssetLoader.LoadServerAssets();
+            Map = AssetLoader.LoadMapFromFile(config.MapName);
+            if (!config.DisableSpawners)
+                Map.LoadAllSpawners();
         }
 
         public bool IsRunning()
@@ -59,7 +52,6 @@ namespace ServerCore
 
         public void StartListeningForPackets()
         {
-            TcpHandler = new ServerTcpHandler();
             TcpHandler.StartListening(PORT);
             Running = true;
         }
@@ -71,23 +63,44 @@ namespace ServerCore
             Running = true;
         }
 
+        // mainly for tests to make sure everything gets cleaned up
         public void Stop()
         {
+            AssetLoader.Clear();
             GameScheduler.Tasks.Clear();
             Events.Clear();
-            GameThread.Stop();
+            GameThread?.Stop();
             TcpHandler?.Stop();
             Running = false;
-        }
+            Server.Map.Chunks = new Dictionary<string, ServerChunk>();
+            foreach(var player in Players.ToList())
+            {
+                player.Tcp.Stop();
+            }
+            Players.Clear();
+            PacketsToProccess.Clear();
+    }
 
         public static OnlinePlayer GetPlayer(string UserId)
         {
-            return Players.ToArray().FirstOrDefault(p => p.UserId == UserId);
+            return Players.ToArray().FirstOrDefault(p => p.UID == UserId);
         }
 
         public static OnlinePlayer GetPlayerByConnectionId(string connectionId)
         {
             return Players.ToArray().FirstOrDefault(p => p.Tcp.ConnectionId == connectionId);
+        }
+
+        public static Monster GetMonster(string monsterUid)
+        {
+            return Map.Monsters[monsterUid];
+        }
+
+        public class ServerStartConfig
+        {
+            public bool DisableSpawners = false;
+            public int Port;
+            public string MapName = "test";
         }
 
     }

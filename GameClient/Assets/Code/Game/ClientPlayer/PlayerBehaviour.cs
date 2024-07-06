@@ -1,133 +1,68 @@
-﻿using Assets.Code.AssetHandling;
-using Assets.Code.Game;
+﻿using Assets.Code.Game;
 using Client.Net;
 using Common.Networking.Packets;
-using CommonCode.EntityShared;
 using MapHandler;
-using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-public class PlayerBehaviour : MonoBehaviour
+public class PlayerBehaviour : LivingEntityBehaviour
 {
-    private Position _nextStep;
 
-    private Direction _movingToDirection = Direction.NONE;
-
-    public List<SpriteSheet> SpriteSheets = new List<SpriteSheet>();
-
-    private float t;
-    private Vector3 startPosition;
-    private Vector3? _target;
-    private float timeToReachTarget;
-    private bool _lastMovement;
-
-    void Start()
+    public override void OnStart()
     {
-        _target = startPosition = transform.position;
-        SpriteSheets = new SpriteSheet[] {
-             transform.Find("body").GetComponent<SpriteSheet>(),
-             transform.Find("chest").GetComponent<SpriteSheet>(),
-             transform.Find("head").GetComponent<SpriteSheet>(),
-             transform.Find("legs").GetComponent<SpriteSheet>()
-        }.ToList();
+      
     }
 
-    void Update()
+    public override void OnBeforeUpdate()
     {
-        ReadPathfindingNextMovement();
-        SetRoute();
-        MoveTick();
+
+    }
+    
+    public override void OnFinishRoute()
+    {
+        // Hide the green square on the ground when i finish moving
+        if (this.Route.Count == 0)
+            Selectors.HideSelector();
     }
 
-    public void StopMovement()
+    public override void OnBeforeMoveTile(Position movingTo)
     {
-        _movingToDirection = Direction.NONE;
-        SpriteSheets.ForEach(e => e.Moving = false);
-        _nextStep = null;
-        _target = null;
-    }
-
-    private void MoveTick()
-    {
-        if (!_target.HasValue)
-            return;
-        t += Time.deltaTime / timeToReachTarget;
-        transform.position = Vector3.Lerp(startPosition, new Vector2(_target.Value.x, _target.Value.y), t);
-
-        if (transform.position == _target && _movingToDirection != Direction.NONE)
+        
+        // Inform the server i moved
+        UnityClient.TcpClient.Send(new EntityMovePacket()
         {
-            _movingToDirection = Direction.NONE;
+            UID = UnityClient.Player.UID,
+            To = movingTo
+        });
 
-            SpriteSheets.ForEach(e => e.Moving = false);
+        var playerPos = UnityClient.Player.Position;
 
-            if (_lastMovement)
-            {
-                _lastMovement = false;
-                if(UnityClient.Player.FollowingPath == null)
-                    Selectors.HideSelector();
-                _target = null;
-            }
-        }
-    }
-
-    private void SetRoute()
-    {
-        var player = UnityClient.Player;
-        if (_nextStep != null && _movingToDirection == Direction.NONE)
+        var currentChunk = UnityClient.Map.GetChunkByTilePosition(playerPos.X, playerPos.Y);
+        var newChunk = UnityClient.Map.GetChunkByTilePosition(movingTo.X, movingTo.Y);
+        
+        if (currentChunk.x != newChunk.x || currentChunk.y != newChunk.y)
         {
-            _movingToDirection = MapHelpers.GetDirection(player.Position, _nextStep);
-            var timeToMove = (float)Formulas.GetTimeToMoveBetweenTwoTiles(player.Speed);
+            var currentChunkX = playerPos.X >> 4;
+            var currentChunkY = playerPos.Y >> 4;
 
-            UnityClient.TcpClient.Send(new EntityMovePacket()
+            var newChunkX = movingTo.X >> 4;
+            var newChunkY = movingTo.Y >> 4;
+
+            var currentChunkParents = PositionExtensions.GetSquared3x3Around(new Position(currentChunkX, currentChunkY)).ToList();
+            var newChunkParents = PositionExtensions.GetSquared3x3Around(new Position(newChunkX, newChunkY)).ToList();
+            
+            foreach (var cc in currentChunkParents.Except(newChunkParents))
             {
-                UID = UnityClient.Player.UserId,
-                From = UnityClient.Player.Position,
-                To = _nextStep
-            });
-
-            SetDestination(new Vector3(_nextStep.X * 16, _nextStep.Y * 16, 0), timeToMove / 1000);
-            Debug.Log("Moving Player To " + _nextStep.X + " - " + _nextStep.Y);
-
-            SpriteSheets.ForEach(e => e.Direction = _movingToDirection);
-            SpriteSheets.ForEach(e => e.Moving = true);
-
-            UnityClient.Player.Position.X = _nextStep.X;
-            // minus cause <reason>
-            UnityClient.Player.Position.Y = _nextStep.Y;
-            _nextStep = null;
-        }
-    }
-
-    public void SetDestination(Vector3 destination, float time)
-    {
-        t = 0;
-        startPosition = transform.position;
-        timeToReachTarget = time;
-        _target = new Vector2(destination.x, -destination.y);
-    }
-
-    private void ReadPathfindingNextMovement()
-    {
-        if (_movingToDirection != Direction.NONE)
-            return;
-        var player = UnityClient.Player;
-        if (player.FollowingPath != null && player.FollowingPath.Count > 0)
-        {
-            var nextStep = player.FollowingPath[0];
-
-            if (player.Position.X == nextStep.X && player.Position.Y == nextStep.Y)
-            {
-                player.FollowingPath.RemoveAt(0);
-                nextStep = player.FollowingPath[0];
+                var chunk = UnityClient.Map.GetChunkByChunkPosition(cc.X, cc.Y);
+                if (chunk != null)
+                    chunk.GameObject.SetActive(false);
             }
 
-            player.FollowingPath.RemoveAt(0);
-            _nextStep = nextStep;
-            if (player.FollowingPath.Count == 0)
+            foreach (var nc in newChunkParents.Except(currentChunkParents))
             {
-                player.FollowingPath = null;
-                _lastMovement = true;
+                var chunk = UnityClient.Map.GetChunkByChunkPosition(nc.X, nc.Y);
+                if(chunk != null)
+                    chunk.GameObject.SetActive(true);
             }
         }
     }

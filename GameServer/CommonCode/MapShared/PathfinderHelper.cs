@@ -1,7 +1,6 @@
 ﻿using MapHandler;
 using System;
 using System.Collections.Generic;
-using System.Text;
 
 namespace CommonCode.Pathfinder
 {
@@ -10,50 +9,49 @@ namespace CommonCode.Pathfinder
         public byte[,] PassableMap;
         public int OffsetX;
         public int OffsetY;
+
+        public byte GetPassableFromTilePosition(int tileX, int tileY)
+        {
+            return PassableMap[tileX + OffsetX * 16, tileY + OffsetY * 16];
+        }
     }
 
-    public class PathfinderHelper
+    // Big Chunks of Ugly Code
+    public static class PathfinderHelper
     {
-
-        private static Position [] GetMinMaxChunks(Dictionary<string, Chunk> chunks)
+        public static Position FindClosestPassable<ChunkType>(this WorldMap<ChunkType> map, Position origin, Position goal) where ChunkType : Chunk
         {
-            int minX = int.MaxValue;
-            int minY = int.MaxValue;
-
-            int maxX = int.MinValue;
-            int maxY = int.MinValue;
-
-            foreach(var chunk in chunks.Values)
+            var bestDirection = goal.GetDirection(origin);
+            var supposedBestTile = goal.Get(bestDirection);
+            if(map.IsPassable(supposedBestTile.X, supposedBestTile.Y))
             {
-                if (chunk.x < minX)
-                    minX = chunk.x;
-                if (chunk.x > maxX)
-                    maxX = chunk.x;
-                if (chunk.y < minY)
-                    minY = chunk.y;
-                if (chunk.y > maxY)
-                    maxY = chunk.y;
+                return supposedBestTile;
+            } else
+            {
+                foreach(var pos in goal.GetRadius(1, includeSelf:false))
+                {
+                    if (pos == supposedBestTile)
+                        continue; // we already checked it
+                    if(map.IsPassable(pos.X, pos.Y))
+                    {
+                        return pos;
+                    }
+                }
             }
-            return new Position[] { new Position(minX, minY), new Position(maxX, maxY) };
+            return null;
         }
 
-        public static PassableMapResult GetPassableByteArray(Position start, Position goal, Dictionary<string, Chunk> chunks)
+        // This is a tricky function. It generates a byte array of [3][3] chunk area (48 tiles) to run the pathfinding algorithm
+        public static PassableMapResult GetPassableByteArray<ChunkType>(this WorldMap<ChunkType> map, Position start, Position goal) where ChunkType : Chunk
         {
-           // var startChunkX = start.X >> 4;
-           // var startChunkY = start.Y >> 4;
+            var startChunkX = start.X >> 4;
+            var startChunkY = start.Y >> 4;
 
-           // var endChunkX = goal.X >> 4;
-           // var endChunkY = goal.Y >> 4;
+            var minChunk = new Position(startChunkX - 1, startChunkY - 1);
+            var maxChunk = new Position(startChunkX + 1, startChunkY + 1);
 
-            var minMaxChunks = GetMinMaxChunks(chunks);
-            var minChunk = minMaxChunks[0];
-            var maxChunk = minMaxChunks[1];
-
-            var chunkDistanceX = 3; //Math.Abs(startChunkX - endChunkX) + 1;
-            var chunkDistanceY = 3; //Math.Abs(startChunkY - endChunkY) + 1;
-
-            //var maxChunk = new Position(Math.Max(startChunkX, endChunkX), Math.Max(startChunkY, endChunkY));
-            //var minChunk = new Position(Math.Min(startChunkX, endChunkX), Math.Min(startChunkY, endChunkY));
+            var chunkDistanceX = 3; 
+            var chunkDistanceY = 3;
 
             int gridSize = Math.Max(chunkDistanceX, chunkDistanceY);
 
@@ -75,19 +73,23 @@ namespace CommonCode.Pathfinder
             {
                 for (int chunkY = minChunk.Y; chunkY <= maxChunk.Y; chunkY++)
                 {
-                    if(!chunks.ContainsKey(chunkX + "_" + chunkY))
+                    if(!map.Chunks.ContainsKey(chunkX + "_" + chunkY))
                     {
                         continue;
                     }
 
-                    Chunk c = chunks[chunkX + "_" + chunkY];
+                    Chunk c = map.Chunks[chunkX + "_" + chunkY];
 
                     for (var tileX = 0; tileX <= 15; tileX++)
                     {
                         for (var tileY = 0; tileY <= 15; tileY++)
                         {
-                            var tile = c.GetTile(tileX, tileY);
-                            if (TileProperties.IsPassable(tile))
+                            var tile = c.Tiles[tileX, tileY].TileId;
+
+                            var mapTileX = chunkX * 16 + tileX;
+                            var mapTileY = chunkY * 16 + tileY;
+
+                            if (map.IsPassable(mapTileX, mapTileY))
                             {
                                 passableMap[(chunkX + xOffset) * 16 + tileX, (chunkY + yOffset) * 16 + tileY] = 1;
                             }

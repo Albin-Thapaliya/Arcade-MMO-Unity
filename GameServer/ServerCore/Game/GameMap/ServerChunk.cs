@@ -1,14 +1,26 @@
 ﻿using MapHandler;
-using ServerCore.Game.Monsters;
+using ServerCore.Game.Entities;
 using ServerCore.GameServer.Players;
+using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace ServerCore.Game.GameMap
 {
     public class ServerChunk : Chunk
     {
-        public List<OnlinePlayer> PlayersInChunk = new List<OnlinePlayer>();
+        // Packet Data
+        public short[,] TilePacketData = new short[SIZE, SIZE];
 
-        public List<Monster> MonstersInChunk = new List<Monster>();
+        public void BuildChunkPacketData()
+        {
+            for (int x = 0; x < SIZE; x++)
+            {
+                for (int y = 0; y < SIZE; y++)
+                {
+                    TilePacketData[x, y] = Tiles[x, y].TileId;
+                }
+            }
+        }
     }
 }

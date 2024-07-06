@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Linq;
 
 namespace ServerCore.ConsoleCmds.Commands
 {
@@ -15,15 +13,18 @@ namespace ServerCore.ConsoleCmds.Commands
         {
             if(args.Length == 1)
             {
-                if(args[0]=="chunk")
+                // CHUNK
+                if(args[0]=="playerposition")
                 {
-                    foreach(var chunk in Server.Map.Chunks.Values)
-                    {
-                        if(chunk.PlayersInChunk.Count > 0)
-                        {
-                            Log.Info($"Chunk {chunk.x} - {chunk.x} have players {chunk.PlayersInChunk.Count}");
-                        }
-                    }
+                    var targetPlayer = Server.Players.First();
+                    Log.Info("Running Consistency Check");
+
+                }
+
+                // SPAWNERS
+                if(args[0]=="reloadspawners")
+                {
+                    Server.Map.LoadAllSpawners();
                 }
             }
 

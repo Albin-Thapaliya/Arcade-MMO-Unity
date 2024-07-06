@@ -1,6 +1,6 @@
 ﻿using Common;
 using Common.Networking.Packets;
-using ServerCore.Utils.Scheduler;
+using Common.Scheduler;
 using System;
 
 // Main game thread, will process things in sync, reading incoming packets from the packet queue
@@ -10,6 +10,9 @@ namespace ServerCore
 {
     public class GameThread : BaseThread
     {
+
+        public static long TIME_MS_NOW = 0;
+
         public bool Running { get; set; }
 
         private long LastTick;
@@ -30,19 +33,19 @@ namespace ServerCore
             LastTick = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
             while (Running)
             {
-                var now = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
-                if(now - LastTick > 50)
+                TIME_MS_NOW = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
+                if(TIME_MS_NOW - LastTick > 50)
                 {
                     Log.Error("Took more then 50ms to do a Game Loop");
                 }
-                ProcessPlayerInput();
-                ProcessEntities();
-                GameScheduler.RunTasks(now);
-                LastTick = now;
+                ProcessPackets();
+                GameScheduler.RunTasks(TIME_MS_NOW);
+                LastTick = TIME_MS_NOW;
             }
         }
 
-        public void ProcessPlayerInput()
+
+        public void ProcessPackets()
         {
             while(Server.PacketsToProccess.Count > 0)
             {
@@ -54,14 +57,5 @@ namespace ServerCore
                 }
             }
         }
-
-        public void ProcessEntities()
-        {
-           // foreach (var onlinePlayer in Server.Players.ToArray())
-           //     continue;
-                //ChunkProvider.CheckChunks(onlinePlayer);
-        }
-
-
     }
 }

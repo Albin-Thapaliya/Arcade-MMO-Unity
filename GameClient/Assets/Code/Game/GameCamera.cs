@@ -1,5 +1,4 @@
 ﻿using UnityEngine;
-using System.Collections;
 using Client.Net;
 
 public class GameCamera : MonoBehaviour
@@ -7,11 +6,18 @@ public class GameCamera : MonoBehaviour
     public float dampTime = 0.15f;
     private Vector3 velocity = Vector3.zero;
 
-    // Update is called once per frame
+    public static int GAME_OBJECTS_SCALE = 100;
+
+    private void Start()
+    {
+        Camera.main.orthographicSize = Screen.height / 6;
+    }
+
     void Update()
     {
         if (UnityClient.Player.PlayerObject == null)
             return;
+
         var target = UnityClient.Player.PlayerObject.transform;
         if (target)
         {

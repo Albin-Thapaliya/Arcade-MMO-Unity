@@ -1,6 +1,8 @@
-﻿using ServerCore.Game.Monsters.Behaviours;
+﻿using CommonCode.EntityShared;
+using ServerCore.Assets;
+using ServerCore.Game.Monsters.Behaviours;
+using ServerCore.Game.Monsters.Behaviours.AggroBehaviours;
 using ServerCore.Game.Monsters.Behaviours.MoveBehaviours;
-using System;
 
 namespace ServerCore.Game.Monsters
 {
@@ -8,9 +10,20 @@ namespace ServerCore.Game.Monsters
     {
         public Skeleton()
         {
-            this.SpriteIndex = 1;
             this.Name = "Skeleton";
-            this.MovementBehaviour = BehaviourPool.Get<RandomWalk>();
+            this.MovementBehaviour = BehaviourPool.Get<LeftRightWalk>();
+            this.AggroBehaviuor = BehaviourPool.Get<TargetBack>();
+        }
+
+        private static SpriteAsset _sprite = new SpriteAsset()
+        {
+            ImageName = DefaultAssets.SPR_MONTERS_1,
+            SpriteRowIndex = 2
+        };
+
+        public override SpriteAsset GetSprite()
+        {
+            return _sprite;
         }
     }
 }

@@ -1,23 +1,23 @@
 using NUnit.Framework;
 using MapHandler;
-using ServerCore.Game.GameMap;
-using CommonCode.Pathfinder;
 using Storage;
 using Storage.TestDataBuilder;
 using ServerCore;
 using ServerCore.Tests.TestUtilities;
 using Common.Networking.Packets;
-using Storage.Login;
 using Storage.Players;
-using ServerCore.GameServer.Players;
+using ServerCore.GameServer.Entities;
+using ServerCore.Game.Entities;
+using static ServerCore.Server;
+using Common.Entity;
 
 namespace MapTests
 {
     [TestFixture]
     public class PlayerInMapTests
     {
-        private Player _player;
-        private Server _server = new Server(123);
+        private StoredPlayer _player;
+        private Server _server;
 
         [SetUp]
         public void Start()
@@ -25,8 +25,9 @@ namespace MapTests
             Redis redis = new Redis();
             redis.Start();
             TestDb.Create();
+            _server = new Server(new ServerStartConfig() { Port = 123 });
             _server.StartGameThread();
-            _player = new Player()
+            _player = new StoredPlayer()
             {
                 UserId = "wololo",
                 Login = "login",
@@ -37,6 +38,12 @@ namespace MapTests
             };
         }
 
+        [TearDown] 
+        public void Stop()
+        {
+            _server.Stop();
+        }
+
         [Test]
         public void TestPlayerMoving()
         {
@@ -45,19 +52,18 @@ namespace MapTests
 
             client.SendToServer(new EntityMovePacket()
             {
-                From = new Position(_player.X, _player.Y),
                 To = new Position(_player.X - 1, _player.Y),
                 UID = _player.UserId
             });
 
-            var player = RedisHash<Player>.Get(_player.UserId);
+            var player = RedisHash<StoredPlayer>.Get(_player.UserId);
 
             Assert.That(player.X == _player.X - 1, 
                 "Server did not store that the player moved");
 
             var onlinePlayer = Server.GetPlayer(_player.UserId);
 
-            Assert.That(onlinePlayer.X == _player.X - 1, 
+            Assert.That(onlinePlayer.Position.X == _player.X - 1, 
                 "Server did not update online player position");
 
             var chunk = onlinePlayer.GetChunk();
@@ -65,7 +71,7 @@ namespace MapTests
             Assert.That(chunk.x == -1, 
                 "Player should have moved to other chunk");
 
-            Assert.That(chunk.PlayersInChunk.Contains(onlinePlayer),
+            Assert.That(chunk.EntitiesInChunk[EntityType.PLAYER].Contains(onlinePlayer),
                 "New chunk did not contain the player reference");
 
         }

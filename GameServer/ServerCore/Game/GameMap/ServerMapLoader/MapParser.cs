@@ -1,4 +1,5 @@
 ﻿using CommonCode;
+using CommonCode.Networking.Packets;
 using MapHandler;
 using ServerCore.Game.GameMap.MobSpawners;
 using ServerCore.Utils;
@@ -21,6 +22,7 @@ namespace ServerCore.Game.GameMap
         // SPAWNER PROPS
         public static string SPAWNER_PROPERTY_MONSTER = "monster";
         public static string SPAWNER_PROPERTY_QTD = "qtd";
+        public static string SPAWNER_PROPERTY_TIMER = "time";
 
 
         /*   
@@ -44,8 +46,13 @@ namespace ServerCore.Game.GameMap
                 {
                     var imgSource = tileset.Element("image").Attribute("source").Value;
                     var tilesetName = imgSource.Split('/').Last();
-                    byte[] image = MapLoader.LoadImageData(tilesetName);
-                    map.Tilesets.Add(tilesetName, image);
+                    var asset = AssetLoader.LoadedAssets.GetAsset(AssetType.TILESET, tilesetName);
+                    if(asset != null)
+                    {
+                        byte[] image = asset.ImageData;
+                        map.Tilesets.Add(tilesetName, image);
+                    }
+                    
                 }
 
                 // Map Objects
@@ -79,10 +86,8 @@ namespace ServerCore.Game.GameMap
 
                 var spawner = new MonsterSpawner()
                 {
-                    minX = x,
-                    maxX = maxX,
-                    minY = y,
-                    maxY = maxY
+                    Min = new Position(x, y),
+                    Max = new Position(maxX, maxY)
                 };
 
                 var xProperties = xObject.Element("properties");
@@ -93,6 +98,14 @@ namespace ServerCore.Game.GameMap
                 var xQtd = xProperties.Descendants("property")
                     .FirstOrDefault(el => el.Attribute("name")?.Value == SPAWNER_PROPERTY_QTD);
 
+                var xTime = xProperties.Descendants("property")
+                  .FirstOrDefault(el => el.Attribute("name")?.Value == SPAWNER_PROPERTY_TIMER);
+
+                if(xTime != null)
+                {
+                    spawner.SpawnTimerSeconds = Int32.Parse(xTime.Attribute("value").Value);
+                }
+
                 var monsterType = xMonster.Attribute("value").Value.FirstCharToUpper();
                 var monsterQtd = Int32.Parse(xQtd.Attribute("value").Value);
 
@@ -100,7 +113,7 @@ namespace ServerCore.Game.GameMap
 
                 if (monsterClass == null)
                 {
-                    throw new InvalidDataException($"Monster {monsterType} in spawner {spawnerName}");
+                    throw new InvalidDataException($"Invalid Monster {monsterType} in spawner {spawnerName}");
                 }
 
                 spawner.SpawnerMobs.Add(new SpawnerMob()
@@ -108,6 +121,7 @@ namespace ServerCore.Game.GameMap
                     Amount = monsterQtd,
                     MonsterClassType = monsterClass
                 });
+
                 map.Spawners.Add(spawner);
             }
         }
@@ -136,10 +150,13 @@ namespace ServerCore.Game.GameMap
                         {
                             for (int x = 0; x < Chunk.SIZE; x++)
                             {
-                                var tile = Int16.Parse(tileArray[x + y * Chunk.SIZE]);
-                                chunk.SetTile(x, y, tile);
+                                var tilePositionX = chunk.x * Chunk.SIZE + x;
+                                var tilePositionY = chunk.y * Chunk.SIZE + y;
+                                var tileId = Int16.Parse(tileArray[x + y * Chunk.SIZE]);
+                                chunk.Tiles[x, y] = new MapTile(new Position(tilePositionX, tilePositionY), tileId);
                             }
                         }
+                        chunk.BuildChunkPacketData();
                         map.AddChunk(chunk);
                     }
                 }

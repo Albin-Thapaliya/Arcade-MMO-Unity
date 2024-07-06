@@ -5,7 +5,6 @@ using ServerCore.GameServer.Players.Evs;
 using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
-using System.Threading;
 
 namespace ServerCore.Networking
 {
@@ -17,7 +16,7 @@ namespace ServerCore.Networking
         public TcpClient TcpClient;
         public string ConnectionId;
         public OnlinePlayer OnlinePlayer;
-        public int Latency = 100; // Default Latency
+        public int Latency = 100; // Default Latency for smoother movement interpolation
         public bool Listening = false;
 
         public static int PING_CHECK_SECONDS = 10;
@@ -26,11 +25,18 @@ namespace ServerCore.Networking
 
         public ConnectedClientTcpHandler()
         {
+        }
 
+        public void Configure()
+        {
+            TcpClient.NoDelay = true;
         }
 
         public virtual bool Send(BasePacket packet)
         {
+            if (!Listening)
+                return false;
+
             try
             {
                 var packetDeserialized = PacketSerializer.Serialize(packet);
@@ -41,15 +47,16 @@ namespace ServerCore.Networking
                 stream.Write(packetSizeBytes, 0, packetSizeBytes.Length);
                 stream.Write(packetDeserialized, 0, packetDeserialized.Length);
 
-                if (packet.GetType() != typeof(PingPacket))
+                if (packet.GetType() != typeof(PingPacket)) // fucking spam...
                     Log.Debug("Sent Packet " + packet.GetType().Name);
             }
             catch (Exception e)
             {
-                Log.Error("Error sending packet " + e.Message);
-                Log.Error(System.Environment.StackTrace);
-                Listening = false;
-               
+                if(Listening)
+                {
+                    Listening = false;
+                    DisconnectClient();
+                }
             }
             return Listening;
         }
@@ -61,12 +68,8 @@ namespace ServerCore.Networking
 
         public void Recieve()
         {
-            var id = Thread.CurrentThread.ManagedThreadId;
-
             DateTime lastPingCheck = DateTime.MinValue;
-
             Log.Debug("Starting Listener for client " + ConnectionId);
-
             Listening = true;
             while (Listening)
             {
@@ -103,7 +106,7 @@ namespace ServerCore.Networking
                                 continue;
                             }
                         }
-                        Log.Debug($"Packet {packet.GetType().Name} recieved");
+                         Log.Debug($"Packet {packet.GetType().Name} recieved");
                         // Put the packet to be processed by the main thread
                         Server.PacketsToProccess.Enqueue(packet);
                     }
@@ -113,6 +116,11 @@ namespace ServerCore.Networking
                     Listening = false;
                 }
             }
+            DisconnectClient();
+        }
+
+        public void DisconnectClient()
+        {
             Server.Events.Call(new PlayerQuitEvent()
             {
                 Client = this,
@@ -120,13 +128,20 @@ namespace ServerCore.Networking
                 Reason = QuitReason.DISCONNECTED
             });
             Stop();
-
         }
 
         public void Stop()
         {
             Listening = false;
-            TcpClient.Close();
+            try
+            {
+                TcpClient?.GetStream().Flush();
+            }
+            catch (Exception e)
+            {
+                // all good
+            }
+            TcpClient?.Close();
         }
 
         private byte[] ReadData()
@@ -162,7 +177,7 @@ namespace ServerCore.Networking
             var now = DateTime.Now;
 
             var clientLatency = (now.Subtract(send)).Milliseconds / 2;
-            var client = ServerTcpHandler.GetClient(packet.ClientId);
+            var client = Server.TcpHandler.GetClient(packet.ClientId);
             client.Latency = clientLatency;
             Log.Debug($"Recieved ping from {client.ConnectionId} latency ={clientLatency}");
         }

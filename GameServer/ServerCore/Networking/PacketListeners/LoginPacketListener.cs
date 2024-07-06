@@ -12,7 +12,7 @@ namespace ServerCore.PacketListeners
         [EventMethod]
         public void OnLogin(LoginPacket packet)
         {
-            var client = ServerTcpHandler.GetClient(packet.ClientId);
+            var client = Server.TcpHandler.GetClient(packet.ClientId);
             try
             {
                 // Check if already is online
@@ -29,7 +29,6 @@ namespace ServerCore.PacketListeners
                 }
 
                 var user = AccountService.Login(packet.Login, packet.Password);
-                Log.Info("Sending Login Response");
 
                 client.Send(new LoginResponsePacket()
                 {
@@ -47,11 +46,10 @@ namespace ServerCore.PacketListeners
                     Client = client
                 });
 
-                AssetListener.DownloadAssets(client);
+                AssetPacketListener.DownloadAssets(client);
             }
             catch (AccountError e)
             {
-                Log.Info("Sending Login Error");
                 client.Send(new DialogPacket()
                 {
                     Title = "Acount Error",

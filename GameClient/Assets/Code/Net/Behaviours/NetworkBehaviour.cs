@@ -1,11 +1,11 @@
 ﻿using Assets.Code.Game;
-using Assets.Code.Net;
 using Client.Net;
+using Common.Scheduler;
+using System;
 using UnityEngine;
 
 public class NetworkBehaviour : MonoBehaviour
 {
-
     public static bool Looping = true;
 
     void Start()
@@ -18,22 +18,20 @@ public class NetworkBehaviour : MonoBehaviour
         if (!Looping)
             return;
         ProcessPackets();
+        var now = DateTime.Now.Ticks / TimeSpan.TicksPerMillisecond;
+        GameScheduler.RunTasks(now);
     }
 
     private void ProcessPackets()
     {
         if (UnityClient.PacketsToProccess.Count > 0)
         {
-            // Are we recieving an asset ? (We wait to recieve it all to process other stuff)
-            var missingAssets = AssetHandler.WaitingForAssets.ToArray();
             var packetsToProcess = UnityClient.PacketsToProccess.ToArray();
 
             // Not an asset, just process the packet
             var packet = UnityClient.PacketsToProccess[0];
-            Debug.Log("Calling " + packet.GetType().Name);
             ClientEvents.Call(packet);
             UnityClient.PacketsToProccess.RemoveAt(0);
-            Debug.Log("Called");
         }
     }
 }

@@ -42,8 +42,8 @@ namespace Client.Net
                 }
                 catch (SerializationException e)
                 {
-                    Console.WriteLine("ERROR PACKET LISTENER");
-                    Console.WriteLine(e.Message + " " + e.StackTrace.ToString());
+                    Debug.Log("ERROR PACKET LISTENER");
+                    Debug.Log(e.Message + " " + e.StackTrace.ToString());
                 }
             }
             // Disconnected for some reason
